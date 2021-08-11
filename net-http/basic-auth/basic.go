@@ -13,7 +13,7 @@ var db = make(map[string]string)
 func setupRouter() *http.ServeMux {
 	r := http.NewServeMux()
 
-	// Ping test
+	// ping test
 	r.HandleFunc("/ping", pingHandler)
 
 	// Get user value
@@ -30,10 +30,43 @@ func setupRouter() *http.ServeMux {
 	r.HandleFunc("/admin", adminHandler)
 
 	return r
-
 }
 
-func makeAdminHandler(authoriazed map[string]string) func(http.ResponseWriter, *http.Request) {
+func pingHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "pong")
+}
+
+func userHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	user := strings.TrimPrefix(r.URL.Path, "/user/")
+
+	log.Println(user)
+
+	w.Header().Set("Content-Type", "application/json")
+	p := make(map[string]string)
+
+	value, ok := db[user]
+	p["user"] = user
+	if ok {
+		p["value"] = value
+	} else {
+		p["status"] = "no value"
+	}
+	json.NewEncoder(w).Encode(p)
+	w.WriteHeader(http.StatusOK)
+}
+
+func makeAdminHandler(authorized map[string]string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusBadRequest)
@@ -46,7 +79,7 @@ func makeAdminHandler(authoriazed map[string]string) func(http.ResponseWriter, *
 			return
 		}
 
-		if p, ok := authoriazed[user]; ok && p == pass {
+		if p, ok := authorized[user]; ok && p == pass {
 			db[user] = pass
 			w.WriteHeader(http.StatusOK)
 			var result = map[string]string{"status": "ok"}
@@ -55,36 +88,6 @@ func makeAdminHandler(authoriazed map[string]string) func(http.ResponseWriter, *
 		}
 		w.WriteHeader(http.StatusUnauthorized)
 	}
-}
-
-func pingHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "pong")
-}
-
-func userHandler(w http.ResponseWriter, r *http.Request) {
-	user := strings.TrimPrefix(r.URL.Path, "/user/")
-
-	log.Println(user)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	p := make(map[string]string)
-
-	value, ok := db[user]
-	if ok {
-		p["user"] = user
-		p["value"] = value
-	} else {
-		p["user"] = user
-		p["status"] = "no value"
-	}
-
-	json.NewEncoder(w).Encode(p)
 }
 
 func main() {
